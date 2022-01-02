@@ -377,6 +377,8 @@ class LevelsTable:
             text_x = lx - text.get_width() // 2
             text_y = ly - text.get_height() // 2
             screen.blit(text, (text_x, text_y))
+            if level + 1 in set(self.level_text_rects.values()):
+                continue
             self.level_text_rects[((x, y) for x in range(int(text_x), int(text_x +
                                                                           text.get_width()))
                                    for y in range(int(text_y), int(text_y + text.get_height())))] \
@@ -407,6 +409,8 @@ class OptionsWindow:
             text_x = tx - text.get_width() // 2
             text_y = ty - text.get_height() // 2
             screen.blit(text, (text_x, text_y))
+            if t + 1 in set(self.text_rects.values()):
+                continue
             self.text_rects[((x, y) for x in range(int(text_x), int(text_x +
                                                                     text.get_width()))
                              for y in range(int(text_y), int(text_y + text.get_height())))] \
@@ -496,7 +500,7 @@ def main():
                     menu.render(screen)
                 if start_pressed and event.type == pygame.MOUSEBUTTONDOWN:
                     lpx, lpy = event.pos
-                    levels = levels_table.level_text_rects.keys()
+                    levels = list(levels_table.level_text_rects.keys())
                     for key in levels:
                         if (lpx, lpy) in key:
                             level_number = levels_table.level_text_rects[key]
@@ -506,16 +510,16 @@ def main():
                             board = Board(level_number, obj_id)
                 if options_pressed and event.type == pygame.MOUSEBUTTONDOWN:
                     tpx, tpy = event.pos
-                    t_positions = options_window.text_rects.keys()
-                    print(options_window.text_rects)
+                    t_positions = list(options_window.text_rects.keys())
                     for key in t_positions:
                         if (tpx, tpy) in key:
                             options_pressed = False
-                            obj_id = options_window.text_rects[key]
-                            levels_table = LevelsTable(obj_id)
-                            options_window = OptionsWindow(obj_id)
-                            board = Board(level_number, obj_id)
-                            menu = Menu(obj_id, menu_buttons)
+                            if obj_id != options_window.text_rects[key]:
+                                obj_id = options_window.text_rects[key]
+                                levels_table = LevelsTable(obj_id)
+                                options_window = OptionsWindow(obj_id)
+                                board = Board(level_number, obj_id)
+                                menu = Menu(obj_id, menu_buttons)
         if start_pressed:
             levels_table.render(screen)
         if options_pressed:
