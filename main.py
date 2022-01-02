@@ -4,10 +4,10 @@ import sys
 
 import pygame
 
-SIZE = WIDTH, HEIGHT = 1200, 1000
-BLOCK_SIDE = 50
+N, M = 24, 20
+BLOCK_SIDE = 45
+SIZE = WIDTH, HEIGHT = N * BLOCK_SIDE, M * BLOCK_SIDE
 PLAYER_HEIGHT = int(450 / 350 * BLOCK_SIDE)
-N, M = WIDTH // BLOCK_SIDE, HEIGHT // BLOCK_SIDE
 PLAYER_IMAGES = {"front": ["1.jpg", "2.jpg", "3.jpg", "4.jpg"],
                  "back": ["1.jpg", "2.jpg", "3.jpg", "4.jpg"],
                  "left": ["1.jpg", "2.jpg", "3.jpg", "4.jpg"],
@@ -17,6 +17,7 @@ boxes = None
 positions = None
 positions_radius = list(range(80, 171, 2)) + list(range(171, 80, -2))
 buttons = None
+levels_amount = 1
 
 
 def load_image(name, colorkey=None, width=BLOCK_SIDE):
@@ -101,6 +102,11 @@ class Brick(BlockObj):
         super().__init__("brick", brick_id, x, y)
 
 
+class Floor(BlockObj):
+    def __init__(self, floor_id, x, y):
+        super().__init__("floor", floor_id, x, y)
+
+
 class Box(BlockObj):
     def __init__(self, box_id, x, y):
         super().__init__("box", box_id, x, y)
@@ -175,11 +181,6 @@ class Box(BlockObj):
         return True
 
 
-class Floor(BlockObj):
-    def __init__(self, floor_id, x, y):
-        super().__init__("floor", floor_id, x, y)
-
-
 class Board:
     def __init__(self, level_number, obj_id):
         global start_pos, boxes, positions
@@ -187,6 +188,11 @@ class Board:
         self.board = [[LEVELS_DECODE[self.board[i][j]](obj_id, j * BLOCK_SIDE, i * BLOCK_SIDE)
                        for j in range(len(self.board[i]))]
                       for i in range(len(self.board))]
+        self.prev_start_pos, self.prev_board, self.prev_positions = start_pos, \
+                                                                    self.board, \
+                                                                    positions
+        self.level_number = level_number
+        self.obj_id = obj_id
 
     def render(self, screen):
         for i in range(N):
@@ -195,6 +201,15 @@ class Board:
 
     def __getitem__(self, item):
         return self.board[item]
+
+    def reset(self):
+        global start_pos, boxes, positions
+        start_pos, self.board, positions = self.prev_start_pos, self.prev_board, \
+                                           self.prev_positions
+        with open(f"data/boxes{self.level_number}.csv", mode="r", encoding="utf-8") as csv_file:
+            reader = list(csv.reader(csv_file, delimiter=",", quotechar="\""))
+            boxes = [Box(self.obj_id, int(elem[1]) * BLOCK_SIDE, int(elem[0]) * BLOCK_SIDE)
+                     for elem in reader[1:]]
 
 
 class Player:
@@ -312,15 +327,20 @@ class Player:
     def render(self, screen):
         self.sprites.draw(screen)
 
+    def reset(self):
+        self.sprite.rect.x, self.sprite.rect.y = start_pos
+
 
 class Button:
     def __init__(self, width, btn_type=""):
         self.btn_type = btn_type
+        self.width = width
         self.sprites = pygame.sprite.Group()
         self.sprite = pygame.sprite.Sprite(self.sprites)
         self.sprite.image = load_image(f"buttons/{btn_type}.png", width=width)
         self.sprite.rect = self.sprite.image.get_rect()
         self.sprite.rect.x, self.sprite.rect.y = buttons[btn_type]
+        self.n, self.m = self.sprite.image.get_size()
 
     def render(self, screen):
         self.sprites.draw(screen)
@@ -330,7 +350,7 @@ class Menu:
     def __init__(self, obj_id, menu_buttons):
         self.background = [[Brick(obj_id, j * BLOCK_SIDE, i * BLOCK_SIDE) for j in range(N)]
                            for i in range(M)]
-        self.buttons = buttons
+        self.buttons = menu_buttons
 
     def render(self, screen):
         for i in range(N):
@@ -338,6 +358,59 @@ class Menu:
                 self.background[j][i].render(screen)
         for btn in self.buttons:
             btn.render(screen)
+
+
+class LevelsTable:
+    def __init__(self, obj_id):
+        self.background = [[Brick(obj_id, j * BLOCK_SIDE, i * BLOCK_SIDE) for j in range(N)]
+                           for i in range(M)]
+        self.level_text_rects = {}
+
+    def render(self, screen):
+        for i in range(N):
+            for j in range(M):
+                self.background[j][i].render(screen)
+        for level in range(levels_amount):
+            lx, ly = (100 + (N - 100) / 4 * (level % 5)), (100 + 100 * (level // 4))
+            font = pygame.font.Font("fonts/pixeboy.ttf", 150)
+            text = font.render(str(level + 1), True, pygame.Color("white"))
+            text_x = lx - text.get_width() // 2
+            text_y = ly - text.get_height() // 2
+            screen.blit(text, (text_x, text_y))
+            self.level_text_rects[((x, y) for x in range(int(text_x), int(text_x +
+                                                                          text.get_width()))
+                                   for y in range(int(text_y), int(text_y + text.get_height())))] \
+                = level + 1
+
+
+class OptionsWindow:
+    def __init__(self, obj_id):
+        self.background = [[Brick(obj_id, j * BLOCK_SIDE, i * BLOCK_SIDE) for j in range(N)]
+                           for i in range(M)]
+        self.text_rects = {}
+
+    def render(self, screen):
+        for i in range(N):
+            for j in range(M):
+                self.background[j][i].render(screen)
+        tx, ty = WIDTH // 2, HEIGHT // 2 - 300
+        font = pygame.font.Font("fonts/pixeboy.ttf", 130)
+        text = font.render("Choose the design", True, pygame.Color("white"))
+        text_x = tx - text.get_width() // 2
+        text_y = ty - text.get_height() // 2
+        screen.blit(text, (text_x, text_y))
+        coords = [(100, HEIGHT // 2), (WIDTH // 2, HEIGHT // 2), (WIDTH - 100, HEIGHT // 2)]
+        for t in range(3):
+            tx, ty = coords[t]
+            font = pygame.font.Font("fonts/pixeboy.ttf", 150)
+            text = font.render(str(t + 1), True, pygame.Color("white"))
+            text_x = tx - text.get_width() // 2
+            text_y = ty - text.get_height() // 2
+            screen.blit(text, (text_x, text_y))
+            self.text_rects[((x, y) for x in range(int(text_x), int(text_x +
+                                                                    text.get_width()))
+                             for y in range(int(text_y), int(text_y + text.get_height())))] \
+                = t + 1
 
 
 LEVELS_DECODE = {"0": Brick, "1": Floor}
@@ -358,16 +431,22 @@ def main():
     board = Board(level_number, obj_id)
     player = Player(board)
     start_button = Button(width=300, btn_type="start")
-    menu_buttons = [start_button]
+    options_button = Button(width=600, btn_type="options")
+    menu_buttons = [start_button, options_button]
     exit_button = Button(width=150, btn_type="exit")
+    levels_table = LevelsTable(obj_id)
+    options_window = OptionsWindow(obj_id)
     menu = Menu(obj_id, menu_buttons)
     x, y = player.sprite.rect.x, player.sprite.rect.y
     directions = {"right": False, "up": False, "down": False, "left": False}
     up, right, down, left = 0, 0, 0, 0
     radius_index = 0
-    game_on = True
+    game_on = False
     display_font = False
     menu_opened = False
+    start_pressed = False
+    exit_pressed = True
+    options_pressed = False
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -397,29 +476,50 @@ def main():
                         down = 0
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mx, my = event.pos
-                    if 1065 <= mx <= 1065 + 33 / 13 * BLOCK_SIDE and 15 <= my <= BLOCK_SIDE:
+                    if 965 <= mx <= 965 + 110 and 15 <= my <= 15 + 220 / 260 * BLOCK_SIDE:
                         game_on = False
-                    # todo: Доделать
+                        exit_pressed = True
             if not game_on:
-                if not menu_opened:
-                    display_font = True
-                if display_font:
-                    screen.fill(pygame.Color("black"))
-                    font = pygame.font.Font("fonts/pixeboy.ttf", 100)
-                    text = font.render("YOU WIN", True, pygame.Color("white"))
-                    text_x = WIDTH // 2 - text.get_width() // 2
-                    text_y = HEIGHT // 2 - text.get_height() // 2
-                    screen.blit(text, (text_x, text_y))
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mx, my = event.pos
                     for button in menu_buttons:
                         bx, by = buttons[button.btn_type]
-                        # if bx <= mx <= bx +
-                    # todo: Доделать
+                        if bx <= mx <= bx + button.width and \
+                                by <= my <= by + button.m / button.n * button.width:
+                            if button.btn_type == "start":
+                                start_pressed = True
+                            elif button.btn_type == "options":
+                                options_pressed = True
                 if event.type == pygame.MOUSEBUTTONDOWN and display_font:
                     menu_opened = True
                     display_font = False
                     menu.render(screen)
+                if start_pressed and event.type == pygame.MOUSEBUTTONDOWN:
+                    lpx, lpy = event.pos
+                    levels = levels_table.level_text_rects.keys()
+                    for key in levels:
+                        if (lpx, lpy) in key:
+                            level_number = levels_table.level_text_rects[key]
+                            game_on = True
+                            start_pressed = False
+                            exit_pressed = False
+                            board = Board(level_number, obj_id)
+                if options_pressed and event.type == pygame.MOUSEBUTTONDOWN:
+                    tpx, tpy = event.pos
+                    t_positions = options_window.text_rects.keys()
+                    print(options_window.text_rects)
+                    for key in t_positions:
+                        if (tpx, tpy) in key:
+                            options_pressed = False
+                            obj_id = options_window.text_rects[key]
+                            levels_table = LevelsTable(obj_id)
+                            options_window = OptionsWindow(obj_id)
+                            board = Board(level_number, obj_id)
+                            menu = Menu(obj_id, menu_buttons)
+        if start_pressed:
+            levels_table.render(screen)
+        if options_pressed:
+            options_window.render(screen)
         if game_on:
             if directions["right"]:
                 right = (right + 1) % 20 + 1
@@ -434,7 +534,6 @@ def main():
                 down = (down + 1) % 20 + 1
                 y += 1
             board.render(screen)
-            exit_button.render(screen)
             for position in positions:
                 pygame.draw.circle(screen, pygame.Color("red"), position,
                                    positions_radius[radius_index] // 20)
@@ -445,7 +544,24 @@ def main():
                 x, y = x1, y1
             radius_index = (radius_index + 1) % len(positions_radius)
             player.render(screen)
+            exit_button.render(screen)
             game_on = not all(boxes)
+        if not game_on and not exit_pressed and not options_pressed:
+            if not menu_opened:
+                display_font = True
+            if display_font:
+                screen.fill(pygame.Color("black"))
+                font = pygame.font.Font("fonts/pixeboy.ttf", 100)
+                text = font.render("YOU WIN", True, pygame.Color("white"))
+                text_x = WIDTH // 2 - text.get_width() // 2
+                text_y = HEIGHT // 2 - text.get_height() // 2
+                screen.blit(text, (text_x, text_y))
+            board.reset()
+            player.reset()
+        elif not game_on and not start_pressed and not options_pressed:
+            menu.render(screen)
+            board.reset()
+            player.reset()
         clock.tick(fps)
         pygame.display.flip()
     pygame.quit()

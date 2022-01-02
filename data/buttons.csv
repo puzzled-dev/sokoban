@@ -1,3 +1,4 @@
 btn_type,x,y
-exit,1065,10
-start,450,250
+exit,945,5
+start,400,250
+options,255,370
