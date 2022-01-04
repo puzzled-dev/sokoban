@@ -5,7 +5,7 @@ import sys
 import pygame
 
 N, M = 24, 20
-BLOCK_SIDE = 45
+BLOCK_SIDE = 30
 SIZE = WIDTH, HEIGHT = N * BLOCK_SIDE, M * BLOCK_SIDE
 PLAYER_HEIGHT = int(450 / 350 * BLOCK_SIDE)
 PLAYER_IMAGES = {"front": ["1.jpg", "2.jpg", "3.jpg", "4.jpg"],
@@ -395,8 +395,8 @@ class OptionsWindow:
         for i in range(N):
             for j in range(M):
                 self.background[j][i].render(screen)
-        tx, ty = WIDTH // 2, HEIGHT // 2 - 300
-        font = pygame.font.Font("fonts/pixeboy.ttf", 130)
+        tx, ty = WIDTH // 2, HEIGHT // 2 - 200
+        font = pygame.font.Font("fonts/pixeboy.ttf", 90)
         text = font.render("Choose the design", True, pygame.Color("white"))
         text_x = tx - text.get_width() // 2
         text_y = ty - text.get_height() // 2
@@ -480,7 +480,9 @@ def main():
                         down = 0
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mx, my = event.pos
-                    if 965 <= mx <= 965 + 110 and 15 <= my <= 15 + 220 / 260 * BLOCK_SIDE:
+                    bx, by = buttons["exit"]
+                    if bx <= mx <= bx + exit_button.width and \
+                            by <= my <= by + exit_button.m / exit_button.n * exit_button.width:
                         game_on = False
                         exit_pressed = True
             if not game_on:
